@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.so
+*.o
+.eggs/
+data-*/
+*.ckpt
+*.pt
+*.png
+*.jpg
+checkpoints/

@@ -1,8 +1,14 @@
 import torch
-import difflogic_cuda
 import numpy as np
 from .functional import bin_op_s, get_unique_connections, GradFactor
 from .packbitstensor import PackBitsTensor
+
+try:
+    import difflogic_cuda
+    _CUDA_AVAILABLE = True
+except ImportError:
+    _CUDA_AVAILABLE = False
+    difflogic_cuda = None
 
 
 ########################################################################################################################
