@@ -1,7 +1,7 @@
 """
 Optimizer: applies gate-level transformations to a HardwareModel.
 
-Supported optimisations
+Supported optimizations
 -----------------------
 - **constant_folding**: Remove ZERO/ONE gates and propagate constants.
 - **identity_removal**: Remove buffer (A/B pass-through) gates.
