@@ -172,6 +172,19 @@ python experiments/main.py  -bs 100 -t 100 --dataset cifar-10-31-thresholds -ni 
 python experiments/main.py  -bs 100 -t 100 --dataset cifar-10-31-thresholds -ni 200_000 -ef 1_000 -k 1_024_000 -l 5
 ```
 
+
+### 🧩 COCO128 Object Detection (CPU, Direct Box Regression)
+
+A minimal CPU-only object detection prototype with a lightweight direct-regression design is provided in:
+
+```shell
+python experiments/difflogic_yolo.py --epochs 2 --batch-size 8 --learning-rate 0.01
+```
+
+This experiment uses a YOLO-style target encoding over an `8x8` grid and predicts per-cell objectness, class, and
+direct box regression `(x, y, w, h)` (no coordinate-bin classification). It trains with BCE (objectness) + cross
+entropy (class) + SmoothL1/GIoU (box).
+
 ## 📖 Citing
 
 ```bibtex

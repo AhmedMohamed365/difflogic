@@ -1,6 +1,11 @@
+import importlib
+import importlib.util
+
 import torch
-import difflogic_cuda
 import numpy as np
+
+_difflogic_cuda_spec = importlib.util.find_spec('difflogic_cuda')
+difflogic_cuda = importlib.import_module('difflogic_cuda') if _difflogic_cuda_spec is not None else None
 from .functional import bin_op_s, get_unique_connections, GradFactor
 from .packbitstensor import PackBitsTensor
 
@@ -54,6 +59,7 @@ class LogicLayer(torch.nn.Module):
         self.indices = self.get_connections(self.connections, device)
 
         if self.implementation == 'cuda':
+            assert difflogic_cuda is not None, 'CUDA implementation requested but difflogic_cuda extension is not available.'
             """
             Defining additional indices for improving the efficiency of the backward of the CUDA implementation.
             """
@@ -83,6 +89,7 @@ class LogicLayer(torch.nn.Module):
                 x = GradFactor.apply(x, self.grad_factor)
 
         if self.implementation == 'cuda':
+            assert difflogic_cuda is not None, 'CUDA implementation requested but difflogic_cuda extension is not available.'
             if isinstance(x, PackBitsTensor):
                 return self.forward_cuda_eval(x)
             return self.forward_cuda(x)
@@ -94,10 +101,8 @@ class LogicLayer(torch.nn.Module):
     def forward_python(self, x):
         assert x.shape[-1] == self.in_dim, (x[0].shape[-1], self.in_dim)
 
-        if self.indices[0].dtype == torch.int64 or self.indices[1].dtype == torch.int64:
-            print(self.indices[0].dtype, self.indices[1].dtype)
+        if self.indices[0].dtype != torch.long or self.indices[1].dtype != torch.long:
             self.indices = self.indices[0].long(), self.indices[1].long()
-            print(self.indices[0].dtype, self.indices[1].dtype)
 
         a, b = x[..., self.indices[0]], x[..., self.indices[1]]
         if self.training:
