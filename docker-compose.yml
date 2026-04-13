@@ -1,0 +1,24 @@
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: difflogic-trainer:cuda
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    gpus: all
+    shm_size: "16gb"
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PIP_NO_CACHE_DIR: "1"
+      TORCH_CUDA_ARCH_LIST: ${TORCH_CUDA_ARCH_LIST:-}
+      MAX_JOBS: ${MAX_JOBS:-1}
+      TRAIN_CMD: ${TRAIN_CMD:-python experiments/main.py -bs 100 -t 100 --dataset cifar-10-3-thresholds -ni 200_000 -ef 1_000 -k 128_000 -l 4 --compile_model}
+    command: "tail -f /dev/null"
+    # command:
+    #   - bash
+    #   - -lc
+    #   - |
+    #     pip install -v --no-build-isolation -e .
+    #     $${TRAIN_CMD}
