@@ -172,6 +172,129 @@ python experiments/main.py  -bs 100 -t 100 --dataset cifar-10-31-thresholds -ni 
 python experiments/main.py  -bs 100 -t 100 --dataset cifar-10-31-thresholds -ni 200_000 -ef 1_000 -k 1_024_000 -l 5
 ```
 
+## 🧭 YOLOv1-Style Object Detection with Logic Gates
+
+This branch extends `difflogic` from pure classification (`GroupSum(k=num_classes)`)
+to a YOLOv1-style multi-output detector while preserving `CompiledLogicNet` export.
+
+### Why this works with logic gates
+
+Continuous bounding-box regression is converted into **bin classification** so every
+output remains logic-compatible:
+
+- Per-cell output layout: `[obj(1) | class(C) | x_bin(Q) | y_bin(Q) | w_bin(Q) | h_bin(Q)]`
+- Output shape: `[N, S, S, 1 + C + 4Q]`
+- Coordinates are decoded from argmax bins:
+  `value = (argmax_bin + 0.5) / Q`
+
+This keeps the last stage compatible with `GroupSum` and `CompiledLogicNet`.
+
+### Architecture (LogicYOLOv1Tiny)
+
+Implemented in `models/logic_yolov1.py`:
+
+1. `PreprocessToBits`: threshold-based binarization of image pixels.
+2. `Flatten`
+3. `LogicLayer x N`
+4. `GroupSum(k = S*S*(1 + C + 4Q), tau=...)`
+5. Python reshape to `[N, S, S, K]` (outside compiled C path)
+
+### Detection components added
+
+- `datasets/synth_shapes.py`: synthetic single-object training data + target builder.
+- `datasets/mini_coco.py`: mini-COCO (`coco128`) adapter using YOLO txt labels.
+- `losses/yolo_bins.py`: objectness BCE + class CE + 4x coord CE.
+- `postprocess/yolo_decode.py`: decode bins -> boxes + NMS.
+- `export/export_compiled_yolo.py`: compile detection backbone.
+- `experiments/train_yolo_synth.py`: synthetic training.
+- `experiments/train_yolo_coco.py`: mini-COCO training.
+- `experiments/infer_yolo_video.py`: inference on video and save drawn boxes.
+
+### Core library updates for detection workflow
+
+- `difflogic/compiled_model.py`: fixed padding in `CompiledLogicNet.forward`
+  when `batch_size < num_bits`.
+- `difflogic/difflogic.py` and `difflogic/packbitstensor.py`: guarded CUDA
+  import so CPU-only environments still run.
+
+### Training workflow
+
+> Important: a CIFAR classification checkpoint is **not** directly a detector.
+> Train `LogicYOLOv1Tiny` with detection targets/loss.
+
+#### 1) Train on synthetic shapes (quick sanity)
+
+```bash
+python experiments/train_yolo_synth.py \
+  --num-samples 2000 \
+  --epochs 20 \
+  --img-size 32 \
+  --S 8 --C 3 --Q 16 \
+  --hidden-dim 1024 --num-layers 4 \
+  --device cpu
+```
+
+Checkpoint: `checkpoints/yolo_synth_best.pt`
+
+#### 2) Train on mini-COCO (coco128)
+
+The script can download mini-COCO automatically and read YOLO txt labels.
+It converts each image annotation set into YOLO-bin targets with one object per
+cell (YOLOv1 responsibility style; larger box kept on cell collisions).
+
+```bash
+python experiments/train_yolo_coco.py \
+  --download-mini-coco \
+  --data-root data/coco128 \
+  --split train2017 \
+  --class-ids 15 16 \
+  --img-size 96 \
+  --S 8 --Q 16 \
+  --hidden-dim 16384 --num-layers 4 \
+  --epochs 20 --batch-size 16 \
+  --device cpu
+```
+
+Notes:
+- `--class-ids` are COCO global IDs (e.g., `15=cat`, `16=dog`).
+- `C` is inferred from number of selected class IDs.
+- `hidden-dim` must satisfy `hidden_dim >= (img_size*img_size*img_channels*num_thresholds)/2`.
+- For small logic nets / CPU testing, reduce `img-size`, `hidden-dim`, and `num-layers`.
+
+Checkpoint: `checkpoints/yolo_coco128_best.pt` (default)
+
+### Video inference with saved output
+
+```bash
+python experiments/infer_yolo_video.py \
+  --checkpoint checkpoints/yolo_coco128_best.pt \
+  --input-video cats.mp4 \
+  --output-video outputs/cats_detected.mp4 \
+  --score-thresh 0.25 \
+  --iou-thresh 0.5 \
+  --class-names cat dog
+```
+
+This writes an annotated MP4 with predicted bounding boxes and labels.
+
+### Compiled export path
+
+```python
+from models.logic_yolov1 import LogicYOLOv1Tiny
+from export.export_compiled_yolo import export_compiled, binarize_inputs
+from postprocess.yolo_decode import decode_predictions
+import torch
+
+model = LogicYOLOv1Tiny(...)
+model.eval()
+compiled = export_compiled(model, cpu_compiler='gcc')
+
+bits = binarize_inputs(imgs, model)         # bool [N, in_dim]
+raw = compiled(bits).float()                # [N, S*S*K]
+raw = raw.reshape(-1, model.S, model.S, model.K)
+dets = decode_predictions(raw, S=model.S, C=model.C, Q=model.Q)
+```
+
 ## 📖 Citing
 
 ```bibtex
