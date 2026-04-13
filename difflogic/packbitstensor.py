@@ -1,4 +1,10 @@
-import difflogic_cuda
+try:
+    import difflogic_cuda as _difflogic_cuda
+    _CUDA_AVAILABLE = True
+except ImportError:
+    _difflogic_cuda = None
+    _CUDA_AVAILABLE = False
+
 import torch
 import numpy as np
 
@@ -13,13 +19,13 @@ class PackBitsTensor:
 
         if device == 'cuda':
             t = t.to(device).T.contiguous()
-            self.t, self.pad_len = difflogic_cuda.tensor_packbits_cuda(t, self.bit_count)
+            self.t, self.pad_len = _difflogic_cuda.tensor_packbits_cuda(t, self.bit_count)
         else:
             raise NotImplementedError(device)
 
     def group_sum(self, k):
         assert self.device == 'cuda', self.device
-        return difflogic_cuda.groupbitsum(self.t, self.pad_len, k)
+        return _difflogic_cuda.groupbitsum(self.t, self.pad_len, k)
 
     def flatten(self, start_dim=0, end_dim=-1, **kwargs):
         """

@@ -349,7 +349,9 @@ void apply_logic_gate_net (bool const *inp, {BITS_TO_DTYPE[32]} *out, size_t len
 
         batch_size_div_bits = math.ceil(x.shape[0] / self.num_bits)
         pad_len = batch_size_div_bits * self.num_bits - x.shape[0]
-        x = np.concatenate([x, np.zeros_like(x[:pad_len])])
+        if pad_len > 0:
+            padding = np.zeros((pad_len,) + x.shape[1:], dtype=x.dtype)
+            x = np.concatenate([x, padding])
 
         if verbose:
             print('x.shape', x.shape)
