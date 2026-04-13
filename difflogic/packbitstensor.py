@@ -1,6 +1,11 @@
-import difflogic_cuda
+import importlib
+import importlib.util
+
 import torch
 import numpy as np
+
+_difflogic_cuda_spec = importlib.util.find_spec('difflogic_cuda')
+difflogic_cuda = importlib.import_module('difflogic_cuda') if _difflogic_cuda_spec is not None else None
 
 
 class PackBitsTensor:
@@ -12,6 +17,7 @@ class PackBitsTensor:
         self.device = device
 
         if device == 'cuda':
+            assert difflogic_cuda is not None, 'PackBitsTensor requires difflogic_cuda extension.'
             t = t.to(device).T.contiguous()
             self.t, self.pad_len = difflogic_cuda.tensor_packbits_cuda(t, self.bit_count)
         else:
@@ -19,6 +25,7 @@ class PackBitsTensor:
 
     def group_sum(self, k):
         assert self.device == 'cuda', self.device
+        assert difflogic_cuda is not None, 'PackBitsTensor requires difflogic_cuda extension.'
         return difflogic_cuda.groupbitsum(self.t, self.pad_len, k)
 
     def flatten(self, start_dim=0, end_dim=-1, **kwargs):
